@@ -20,7 +20,7 @@
 // THE SOFTWARE.
 // ---------------------------------------------------------------------
 
-namespace Microsoft.IO
+namespace Spreads.Serialization.Microsoft.IO
 {
     using System;
     using System.IO;
