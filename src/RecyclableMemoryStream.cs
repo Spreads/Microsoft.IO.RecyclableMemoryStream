@@ -20,8 +20,7 @@
 // THE SOFTWARE.
 // ---------------------------------------------------------------------
 
-namespace Spreads.Serialization.Microsoft.IO
-{
+namespace Spreads.Serialization.Microsoft.IO {
     using System;
     using System.IO;
     using System.Collections.Generic;
@@ -57,10 +56,9 @@ namespace Spreads.Serialization.Microsoft.IO
     /// are maintained in the stream until the stream is disposed (unless AggressiveBufferReturn is enabled in the stream manager).
     /// 
     /// </remarks>
-    public sealed class RecyclableMemoryStream : MemoryStream
-    {
+    public sealed class RecyclableMemoryStream : MemoryStream {
         private const long MaxStreamLength = Int32.MaxValue;
-        
+
         private static readonly byte[] emptyArray = new byte[0];
 
         /// <summary>
@@ -83,7 +81,7 @@ namespace Spreads.Serialization.Microsoft.IO
         /// than they should and you want to prevent race conditions which could corrupt the data.
         /// </summary>
         private List<byte[]> dirtyBuffers;
-        
+
         private readonly Guid id;
         /// <summary>
         /// Unique identifier for this stream across it's entire lifetime
@@ -142,8 +140,7 @@ namespace Spreads.Serialization.Microsoft.IO
         /// </summary>
         /// <param name="memoryManager">The memory manager</param>
         public RecyclableMemoryStream(RecyclableMemoryStreamManager memoryManager)
-            : this(memoryManager, null, 0, null)
-        {
+            : this(memoryManager, null, 0, null) {
         }
 
         /// <summary>
@@ -152,8 +149,7 @@ namespace Spreads.Serialization.Microsoft.IO
         /// <param name="memoryManager">The memory manager</param>
         /// <param name="tag">A string identifying this stream for logging and debugging purposes</param>
         public RecyclableMemoryStream(RecyclableMemoryStreamManager memoryManager, string tag)
-            : this(memoryManager, tag, 0, null)
-        {
+            : this(memoryManager, tag, 0, null) {
         }
 
         /// <summary>
@@ -163,8 +159,7 @@ namespace Spreads.Serialization.Microsoft.IO
         /// <param name="tag">A string identifying this stream for logging and debugging purposes</param>
         /// <param name="requestedSize">The initial requested size to prevent future allocations</param>
         public RecyclableMemoryStream(RecyclableMemoryStreamManager memoryManager, string tag, int requestedSize)
-            : this(memoryManager, tag, requestedSize, null)
-        {
+            : this(memoryManager, tag, requestedSize, null) {
         }
 
         /// <summary>
@@ -176,30 +171,24 @@ namespace Spreads.Serialization.Microsoft.IO
         /// <param name="initialLargeBuffer">An initial buffer to use. This buffer will be owned by the stream and returned to the memory manager upon Dispose.</param>
         internal RecyclableMemoryStream(RecyclableMemoryStreamManager memoryManager, string tag, int requestedSize,
                                       byte[] initialLargeBuffer)
-            : base(emptyArray)
-        {
+            : base(emptyArray) {
             this.memoryManager = memoryManager;
             this.id = Guid.NewGuid();
             this.tag = tag;
 
-            if (requestedSize < memoryManager.BlockSize)
-            {
+            if (requestedSize < memoryManager.BlockSize) {
                 requestedSize = memoryManager.BlockSize;
             }
 
-            if (initialLargeBuffer == null)
-            {
+            if (initialLargeBuffer == null) {
                 this.EnsureCapacity(requestedSize);
-            }
-            else
-            {
+            } else {
                 this.largeBuffer = initialLargeBuffer;
             }
 
             this.disposed = false;
 
-            if (this.memoryManager.GenerateCallStacks)
-            {
+            if (this.memoryManager.GenerateCallStacks) {
                 this.allocationStack = Environment.StackTrace;
             }
 
@@ -209,8 +198,7 @@ namespace Spreads.Serialization.Microsoft.IO
         #endregion
 
         #region Dispose and Finalize
-        ~RecyclableMemoryStream()
-        {
+        ~RecyclableMemoryStream() {
             this.Dispose(false);
         }
 
@@ -220,42 +208,35 @@ namespace Spreads.Serialization.Microsoft.IO
         /// <param name="disposing">Whether we're disposing (true), or being called by the finalizer (false)</param>
         /// <remarks>This method is not thread safe and it may not be called more than once.</remarks>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA1816:CallGCSuppressFinalizeCorrectly", Justification = "We have different disposal semantics, so SuppressFinalize is in a different spot.")]
-        protected override void Dispose(bool disposing)
-        {
-            if (this.disposed)
-            {
+        protected override void Dispose(bool disposing) {
+            if (this.disposed) {
                 string doubleDisposeStack = null;
-                if (this.memoryManager.GenerateCallStacks)
-                {
+                if (this.memoryManager.GenerateCallStacks) {
                     doubleDisposeStack = Environment.StackTrace;
                 }
 
                 Events.Write.MemoryStreamDoubleDispose(this.id, this.tag, this.allocationStack, this.disposeStack, doubleDisposeStack);
                 return;
             }
-            
+
             Events.Write.MemoryStreamDisposed(this.id, this.tag);
 
-            if (this.memoryManager.GenerateCallStacks)
-            {
+            if (this.memoryManager.GenerateCallStacks) {
                 this.disposeStack = Environment.StackTrace;
             }
 
-            if (disposing)
-            {
+            if (disposing) {
                 // Once this flag is set, we can't access any properties -- use fields directly
                 this.disposed = true;
 
                 this.memoryManager.ReportStreamDisposed();
-                                
+
                 GC.SuppressFinalize(this);
-            }
-            else
-            {
+            } else {
                 // We're being finalized.
 
                 Events.Write.MemoryStreamFinalized(this.id, this.tag, this.allocationStack);
-
+#if NET451
                 if (AppDomain.CurrentDomain.IsFinalizingForUnload())
                 {
                     // If we're being finalized because of a shutdown, don't go any further.
@@ -264,30 +245,27 @@ namespace Spreads.Serialization.Microsoft.IO
                     base.Dispose(disposing);
                     return;
                 }
-                
-                this.memoryManager.ReportStreamFinalized(); 
+#endif
+                this.memoryManager.ReportStreamFinalized();
             }
 
             this.memoryManager.ReportStreamLength(this.length);
 
-            if (this.largeBuffer != null)
-            {
+            if (this.largeBuffer != null) {
                 this.memoryManager.ReturnLargeBuffer(this.largeBuffer, this.tag);
             }
 
-            if (this.dirtyBuffers != null)
-            {
-                foreach (var buffer in this.dirtyBuffers)
-                {
+            if (this.dirtyBuffers != null) {
+                foreach (var buffer in this.dirtyBuffers) {
                     this.memoryManager.ReturnLargeBuffer(buffer, this.tag);
                 }
             }
 
             this.memoryManager.ReturnBlocks(this.blocks, this.tag);
-            
+
             base.Dispose(disposing);
         }
-
+#if NET451
         /// <summary>
         /// Equivalent to Dispose
         /// </summary>
@@ -295,6 +273,7 @@ namespace Spreads.Serialization.Microsoft.IO
         {
             this.Dispose(true);
         }
+#endif
         #endregion
 
         #region MemoryStream overrides
@@ -313,13 +292,11 @@ namespace Spreads.Serialization.Microsoft.IO
             get
             {
                 this.CheckDisposed();
-                if (this.largeBuffer != null)
-                {
+                if (this.largeBuffer != null) {
                     return this.largeBuffer.Length;
                 }
 
-                if (this.blocks.Count > 0)
-                {
+                if (this.blocks.Count > 0) {
                     return this.blocks.Count * this.memoryManager.BlockSize;
                 }
                 return 0;
@@ -354,21 +331,19 @@ namespace Spreads.Serialization.Microsoft.IO
         /// <exception cref="ObjectDisposedException">Object has been disposed</exception>
         public override long Position
         {
-            get 
-            { 
+            get
+            {
                 this.CheckDisposed();
-                return this.position; 
+                return this.position;
             }
             set
             {
                 this.CheckDisposed();
-                if (value < 0)
-                {
+                if (value < 0) {
                     throw new ArgumentOutOfRangeException("value", "value must be non-negative");
                 }
 
-                if (value > MaxStreamLength)
-                {
+                if (value > MaxStreamLength) {
                     throw new ArgumentOutOfRangeException("value", "value cannot be more than " + MaxStreamLength);
                 }
 
@@ -408,6 +383,7 @@ namespace Spreads.Serialization.Microsoft.IO
             get { return !this.disposed; }
         }
 
+#if NET451 // TODO netcore has TryGetBuffer
         /// <summary>
         /// Returns a single buffer containing the contents of the stream.
         /// The buffer may be longer than the stream length.
@@ -416,17 +392,14 @@ namespace Spreads.Serialization.Microsoft.IO
         /// <remarks>IMPORTANT: Doing a Write() after calling GetBuffer() invalidates the buffer. The old buffer is held onto
         /// until Dispose is called, but the next time GetBuffer() is called, a new buffer from the pool will be required.</remarks>
         /// <exception cref="ObjectDisposedException">Object has been disposed</exception>
-        public override byte[] GetBuffer()
-        {
+        public override byte[] GetBuffer() {
             this.CheckDisposed();
 
-            if (this.largeBuffer != null)
-            {
+            if (this.largeBuffer != null) {
                 return this.largeBuffer;
             }
 
-            if (this.blocks.Count == 1)
-            {
+            if (this.blocks.Count == 1) {
                 return this.blocks[0];
             }
 
@@ -435,14 +408,13 @@ namespace Spreads.Serialization.Microsoft.IO
             // and set the length afterward. Capacity sets the expectation
             // for the size of the buffer.
             var newBuffer = this.memoryManager.GetLargeBuffer(this.Capacity, this.tag);
-            
+
             // InternalRead will check for existence of largeBuffer, so make sure we
             // don't set it until after we've copied the data.
             this.InternalRead(newBuffer, 0, this.length, 0);
             this.largeBuffer = newBuffer;
 
-            if (this.blocks.Count > 0 && this.memoryManager.AggressiveBufferReturn)
-            {
+            if (this.blocks.Count > 0 && this.memoryManager.AggressiveBufferReturn) {
                 this.memoryManager.ReturnBlocks(this.blocks, this.tag);
                 this.blocks.Clear();
             }
@@ -450,6 +422,7 @@ namespace Spreads.Serialization.Microsoft.IO
             return this.largeBuffer;
         }
 
+#endif
         /// <summary>
         /// Returns a new array with a copy of the buffer's contents. You should almost certainly be using GetBuffer combined with the Length to 
         /// access the bytes in this stream. Calling ToArray will destroy the benefits of pooled buffers, but it is included
@@ -457,8 +430,7 @@ namespace Spreads.Serialization.Microsoft.IO
         /// </summary>
         /// <exception cref="ObjectDisposedException">Object has been disposed</exception>
         [Obsolete("This method has degraded performance vs. GetBuffer and should be avoided.")]
-        public override byte[] ToArray()
-        {
+        public override byte[] ToArray() {
             this.CheckDisposed();
             var newBuffer = new byte[this.Length];
 
@@ -481,8 +453,7 @@ namespace Spreads.Serialization.Microsoft.IO
         /// <exception cref="ArgumentOutOfRangeException">offset or count is less than 0</exception>
         /// <exception cref="ArgumentException">offset subtracted from the buffer length is less than count</exception>
         /// <exception cref="ObjectDisposedException">Object has been disposed</exception>
-        public override int Read(byte[] buffer, int offset, int count)
-        {
+        public override int Read(byte[] buffer, int offset, int count) {
             return this.SafeRead(buffer, offset, count, ref this.position);
         }
 
@@ -498,26 +469,21 @@ namespace Spreads.Serialization.Microsoft.IO
         /// <exception cref="ArgumentOutOfRangeException">offset or count is less than 0</exception>
         /// <exception cref="ArgumentException">offset subtracted from the buffer length is less than count</exception>
         /// <exception cref="ObjectDisposedException">Object has been disposed</exception>
-        public int SafeRead(byte[] buffer, int offset, int count, ref int streamPosition)
-        {
+        public int SafeRead(byte[] buffer, int offset, int count, ref int streamPosition) {
             this.CheckDisposed();
-            if (buffer == null)
-            {
+            if (buffer == null) {
                 throw new ArgumentNullException("buffer");
             }
 
-            if (offset < 0)
-            {
+            if (offset < 0) {
                 throw new ArgumentOutOfRangeException("offset", "offset cannot be negative");
             }
 
-            if (count < 0)
-            {
+            if (count < 0) {
                 throw new ArgumentOutOfRangeException("count", "count cannot be negative");
             }
 
-            if (offset + count > buffer.Length)
-            {
+            if (offset + count > buffer.Length) {
                 throw new ArgumentException("buffer length must be at least offset + count");
             }
 
@@ -536,54 +502,45 @@ namespace Spreads.Serialization.Microsoft.IO
         /// <exception cref="ArgumentOutOfRangeException">offset or count is negative</exception>
         /// <exception cref="ArgumentException">buffer.Length - offset is not less than count</exception>
         /// <exception cref="ObjectDisposedException">Object has been disposed</exception>
-        public override void Write(byte[] buffer, int offset, int count)
-        {
+        public override void Write(byte[] buffer, int offset, int count) {
             this.CheckDisposed();
-            if (buffer == null)
-            {
+            if (buffer == null) {
                 throw new ArgumentNullException("buffer");
             }
-            
-            if (offset < 0)
-            {
-                throw  new ArgumentOutOfRangeException("offset", offset, "Offset must be in the range of 0 - buffer.Length-1");
+
+            if (offset < 0) {
+                throw new ArgumentOutOfRangeException("offset", offset, "Offset must be in the range of 0 - buffer.Length-1");
             }
 
-            if (count < 0)
-            {
+            if (count < 0) {
                 throw new ArgumentOutOfRangeException("count", count, "count must be non-negative");
             }
 
-            if (count + offset > buffer.Length)
-            {
+            if (count + offset > buffer.Length) {
                 throw new ArgumentException("count must be greater than buffer.Length - offset");
             }
 
             int blockSize = this.memoryManager.BlockSize;
             long end = (long)this.position + count;
             // Check for overflow
-            if (end > MaxStreamLength)
-            {
+            if (end > MaxStreamLength) {
                 throw new IOException("Maximum capacity exceeded");
             }
 
             long requiredBuffers = (end + blockSize - 1) / blockSize;
-            
-            if (requiredBuffers * blockSize > MaxStreamLength)
-            {
+
+            if (requiredBuffers * blockSize > MaxStreamLength) {
                 throw new IOException("Maximum capacity exceeded");
             }
 
             this.EnsureCapacity((int)end);
 
-            if (this.largeBuffer == null)
-            {
+            if (this.largeBuffer == null) {
                 int bytesRemaining = count;
                 int bytesWritten = 0;
                 var blockAndOffset = this.GetBlockAndRelativeOffset(this.position);
 
-                while (bytesRemaining > 0)
-                {
+                while (bytesRemaining > 0) {
                     byte[] currentBlock = this.blocks[blockAndOffset.Block];
                     int remainingInBlock = blockSize - blockAndOffset.Offset;
                     int amountToWriteInBlock = Math.Min(remainingInBlock, bytesRemaining);
@@ -596,9 +553,7 @@ namespace Spreads.Serialization.Microsoft.IO
                     ++blockAndOffset.Block;
                     blockAndOffset.Offset = 0;
                 }
-            }
-            else
-            {
+            } else {
                 Buffer.BlockCopy(buffer, offset, this.largeBuffer, this.position, count);
             }
             this.position = (int)end;
@@ -608,8 +563,7 @@ namespace Spreads.Serialization.Microsoft.IO
         /// <summary>
         /// Returns a useful string for debugging. This should not normally be called in actual production code.
         /// </summary>
-        public override string ToString()
-        {
+        public override string ToString() {
             return string.Format("Id = {0}, Tag = {1}, Length = {2:N0} bytes", this.Id, this.Tag, this.Length);
         }
 
@@ -618,8 +572,7 @@ namespace Spreads.Serialization.Microsoft.IO
         /// </summary>
         /// <param name="value">byte value to write</param>
         /// <exception cref="ObjectDisposedException">Object has been disposed</exception>
-        public override void WriteByte(byte value)
-        {
+        public override void WriteByte(byte value) {
             this.CheckDisposed();
             this.byteBuffer[0] = value;
             this.Write(this.byteBuffer, 0, 1);
@@ -630,8 +583,7 @@ namespace Spreads.Serialization.Microsoft.IO
         /// </summary>
         /// <returns>The byte at the current position, or -1 if the position is at the end of the stream.</returns>
         /// <exception cref="ObjectDisposedException">Object has been disposed</exception>
-        public override int ReadByte()
-        {
+        public override int ReadByte() {
             return this.SafeReadByte(ref this.position);
         }
 
@@ -641,21 +593,16 @@ namespace Spreads.Serialization.Microsoft.IO
         /// <param name="streamPosition">The position in the stream to read from</param>
         /// <returns>The byte at the current position, or -1 if the position is at the end of the stream.</returns>
         /// <exception cref="ObjectDisposedException">Object has been disposed</exception>
-        public int SafeReadByte(ref int streamPosition)
-        {
+        public int SafeReadByte(ref int streamPosition) {
             this.CheckDisposed();
-            if (streamPosition == this.length)
-            {
+            if (streamPosition == this.length) {
                 return -1;
             }
             byte value = 0;
-            if (this.largeBuffer == null)
-            {
+            if (this.largeBuffer == null) {
                 var blockAndOffset = this.GetBlockAndRelativeOffset(streamPosition);
                 value = this.blocks[blockAndOffset.Block][blockAndOffset.Offset];
-            }
-            else
-            {
+            } else {
                 value = this.largeBuffer[streamPosition];
             }
             streamPosition++;
@@ -667,20 +614,17 @@ namespace Spreads.Serialization.Microsoft.IO
         /// </summary>
         /// <exception cref="ArgumentOutOfRangeException">value is negative or larger than MaxStreamLength</exception>
         /// <exception cref="ObjectDisposedException">Object has been disposed</exception>
-        public override void SetLength(long value)
-        {
+        public override void SetLength(long value) {
             this.CheckDisposed();
-            if (value < 0 || value > MaxStreamLength)
-            {
+            if (value < 0 || value > MaxStreamLength) {
                 throw new ArgumentOutOfRangeException("value", "value must be non-negative and at most " + MaxStreamLength);
             }
-            
+
             this.EnsureCapacity((int)value);
 
             this.length = (int)value;
-            if (this.position > value)
-            {
-                this.position = (int) value;
+            if (this.position > value) {
+                this.position = (int)value;
             }
         }
 
@@ -694,31 +638,27 @@ namespace Spreads.Serialization.Microsoft.IO
         /// <exception cref="ArgumentOutOfRangeException">offset is larger than MaxStreamLength</exception>
         /// <exception cref="ArgumentException">Invalid seek origin</exception>
         /// <exception cref="IOException">Attempt to set negative position</exception>
-        public override long Seek(long offset, SeekOrigin loc)
-        {
+        public override long Seek(long offset, SeekOrigin loc) {
             this.CheckDisposed();
-            if (offset > MaxStreamLength)
-            {
+            if (offset > MaxStreamLength) {
                 throw new ArgumentOutOfRangeException("offset", "offset cannot be larger than " + MaxStreamLength);
             }
 
             int newPosition;
-            switch (loc)
-            {
+            switch (loc) {
                 case SeekOrigin.Begin:
                     newPosition = (int)offset;
-                break;
+                    break;
                 case SeekOrigin.Current:
-                    newPosition = (int) offset + this.position;
-                break;
+                    newPosition = (int)offset + this.position;
+                    break;
                 case SeekOrigin.End:
-                    newPosition = (int) offset + this.length;
-                break;
+                    newPosition = (int)offset + this.length;
+                    break;
                 default:
                     throw new ArgumentException("Invalid seek origin", "loc");
             }
-            if (newPosition < 0)
-            {
+            if (newPosition < 0) {
                 throw new IOException("Seek before beginning");
             }
             this.position = newPosition;
@@ -730,59 +670,47 @@ namespace Spreads.Serialization.Microsoft.IO
         /// </summary>
         /// <param name="stream">Destination stream</param>
         /// <remarks>Important: This does a synchronous write, which may not be desired in some situations</remarks>
-        public override void WriteTo(Stream stream)
-        {
+        public override void WriteTo(Stream stream) {
             this.CheckDisposed();
-            if (stream == null)
-            {
+            if (stream == null) {
                 throw new ArgumentNullException("stream");
             }
-            
-            if (this.largeBuffer == null)
-            {
+
+            if (this.largeBuffer == null) {
                 int currentBlock = 0;
                 int bytesRemaining = this.length;
 
-                while (bytesRemaining > 0)
-                {
+                while (bytesRemaining > 0) {
                     int amountToCopy = Math.Min(this.blocks[currentBlock].Length, bytesRemaining);
                     stream.Write(this.blocks[currentBlock], 0, amountToCopy);
-                    
+
                     bytesRemaining -= amountToCopy;
 
                     ++currentBlock;
                 }
-            }
-            else
-            {
+            } else {
                 stream.Write(this.largeBuffer, 0, this.length);
             }
         }
-        #endregion
-        
-        #region Helper Methods
-        private void CheckDisposed()
-        {
-            if (this.disposed)
-            {
+#endregion
+
+#region Helper Methods
+        private void CheckDisposed() {
+            if (this.disposed) {
                 throw new ObjectDisposedException(string.Format("The stream with Id {0} and Tag {1} is disposed.", this.id, this.tag));
             }
         }
 
-        private int InternalRead(byte[] buffer, int offset, int count, int fromPosition)
-        {
-            if (this.length - fromPosition <= 0)
-            {
+        private int InternalRead(byte[] buffer, int offset, int count, int fromPosition) {
+            if (this.length - fromPosition <= 0) {
                 return 0;
             }
-            if (this.largeBuffer == null)
-            {
+            if (this.largeBuffer == null) {
                 var blockAndOffset = this.GetBlockAndRelativeOffset(fromPosition);
                 int bytesWritten = 0;
                 int bytesRemaining = Math.Min(count, this.length - fromPosition);
 
-                while (bytesRemaining > 0)
-                {
+                while (bytesRemaining > 0) {
                     int amountToCopy = Math.Min(this.blocks[blockAndOffset.Block].Length - blockAndOffset.Offset, bytesRemaining);
                     Buffer.BlockCopy(this.blocks[blockAndOffset.Block], blockAndOffset.Offset, buffer, bytesWritten + offset, amountToCopy);
 
@@ -793,55 +721,43 @@ namespace Spreads.Serialization.Microsoft.IO
                     blockAndOffset.Offset = 0;
                 }
                 return bytesWritten;
-            }
-            else
-            {
+            } else {
                 int amountToCopy = Math.Min(count, this.length - fromPosition);
                 Buffer.BlockCopy(this.largeBuffer, fromPosition, buffer, offset, amountToCopy);
                 return amountToCopy;
             }
         }
 
-        private struct BlockAndOffset
-        {
+        private struct BlockAndOffset {
             public int Block;
             public int Offset;
 
-            public BlockAndOffset(int block, int offset)
-            {
+            public BlockAndOffset(int block, int offset) {
                 this.Block = block;
                 this.Offset = offset;
             }
         }
 
-        private BlockAndOffset GetBlockAndRelativeOffset(int offset)
-        {
+        private BlockAndOffset GetBlockAndRelativeOffset(int offset) {
             var blockSize = this.memoryManager.BlockSize;
             return new BlockAndOffset(offset / blockSize, offset % blockSize);
         }
 
-        private void EnsureCapacity(int newCapacity)
-        {
-            if (newCapacity > this.memoryManager.MaximumStreamCapacity && this.memoryManager.MaximumStreamCapacity > 0)
-            {
+        private void EnsureCapacity(int newCapacity) {
+            if (newCapacity > this.memoryManager.MaximumStreamCapacity && this.memoryManager.MaximumStreamCapacity > 0) {
                 Events.Write.MemoryStreamOverCapacity(newCapacity, this.memoryManager.MaximumStreamCapacity, this.tag, this.allocationStack);
                 throw new InvalidOperationException("Requested capacity is too large: " + newCapacity + ". Limit is " + this.memoryManager.MaximumStreamCapacity);
             }
 
-            if (this.largeBuffer != null)
-            {
-                if (newCapacity > this.largeBuffer.Length)
-                {
+            if (this.largeBuffer != null) {
+                if (newCapacity > this.largeBuffer.Length) {
                     var newBuffer = this.memoryManager.GetLargeBuffer(newCapacity, this.tag);
                     this.InternalRead(newBuffer, 0, this.length, 0);
                     this.ReleaseLargeBuffer();
                     this.largeBuffer = newBuffer;
                 }
-            }
-            else
-            {
-                while (this.Capacity < newCapacity)
-                {
+            } else {
+                while (this.Capacity < newCapacity) {
                     blocks.Add((this.memoryManager.GetBlock()));
                 }
             }
@@ -850,16 +766,11 @@ namespace Spreads.Serialization.Microsoft.IO
         /// <summary>
         /// Release the large buffer (either stores it for eventual release or returns it immediately).
         /// </summary>
-        private void ReleaseLargeBuffer()
-        {
-            if (this.memoryManager.AggressiveBufferReturn)
-            {
+        private void ReleaseLargeBuffer() {
+            if (this.memoryManager.AggressiveBufferReturn) {
                 this.memoryManager.ReturnLargeBuffer(this.largeBuffer, this.tag);
-            }
-            else
-            {
-                if (this.dirtyBuffers == null)
-                {
+            } else {
+                if (this.dirtyBuffers == null) {
                     // We most likely will only ever need space for one
                     this.dirtyBuffers = new List<byte[]>(1);
                 }
@@ -868,6 +779,6 @@ namespace Spreads.Serialization.Microsoft.IO
 
             this.largeBuffer = null;
         }
-        #endregion
+#endregion
     }
 }
