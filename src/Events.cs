@@ -20,7 +20,7 @@
 // THE SOFTWARE.
 // ---------------------------------------------------------------------
 
-namespace Spreads.Serialization.Microsoft.IO
+namespace Spreads.Buffers
 {
     using System;
     using System.Diagnostics.Tracing;
